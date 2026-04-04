@@ -234,15 +234,22 @@ jobs:
         include:
           - rid: win-x64
             cmake_arch: x64
+            msvc_arch: amd64
             extra_cmake: -DOPUS_X86_MAY_HAVE_AVX2=ON
 
           - rid: win-arm64
             cmake_arch: ARM64
+            msvc_arch: amd64_arm64
             extra_cmake: -DOPUS_ARM_MAY_HAVE_NEON_INTR=ON
 
     steps:
       - name: checkout
         uses: actions/checkout@v6
+
+      - name: setup msvc
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.msvc_arch }}
 
       - name: download source
         shell: pwsh
@@ -294,6 +301,7 @@ jobs:
         run: cmake --build build-static --config Release --parallel
 
       - name: verify outputs
+        shell: pwsh
         working-directory: opus-src
         run: |
           dumpbin /headers build-shared\Release\opus.dll | findstr "machine"
@@ -314,7 +322,7 @@ jobs:
         with:
           name: libopus-${{ matrix.rid }}
           path: dist
-          retention-days: 14
+          retention-days: ${{ env.RETENTION_DAYS }}
 
   # pack:
   #   needs: [build-linux, build-macos, build-windows]
