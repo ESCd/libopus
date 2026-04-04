@@ -423,23 +423,24 @@ jobs:
           $artifact = Join-Path ${{ github.workspace }} "artifact"
           $output = Join-Path ${{ github.workspace }} "src"
 
-          $runtimes = @("linux-arm", "linux-arm64", "linux-x64", "linux-musl-arm", "linux-musl-arm64", "linux-musl-x64", "osx-arm64", "osx-x64", "win-arm64", "win-x64")
-          foreach ($file in Get-ChildItem -Path ([System.IO.Path]::Combine($artifact, "libopus-$runtime", "lib")) -Recurse -File) {
-            New-Item -ItemType Directory -Path ([System.IO.Path]::Combine($output, "static", $rid, "native")) -Force | Out-Null
+          foreach ($runtime in @("linux-arm", "linux-arm64", "linux-x64", "linux-musl-arm", "linux-musl-arm64", "linux-musl-x64", "osx-arm64", "osx-x64", "win-arm64", "win-x64")) {
+            foreach ($file in Get-ChildItem -Path ([System.IO.Path]::Combine($artifact, "libopus-$runtime", "lib")) -Recurse -File) {
+              New-Item -ItemType Directory -Path ([System.IO.Path]::Combine($output, "static", $rid, "native")) -Force | Out-Null
 
-            $destination = [System.IO.Path]::Combine($output, "static", $rid, "native", $file.Name)
-            Move-Item -Path $file.FullName -Destination $destination -Force
+              $destination = [System.IO.Path]::Combine($output, "static", $rid, "native", $file.Name)
+              Move-Item -Path $file.FullName -Destination $destination -Force
 
-            Write-Host "[!] Moved ${file.FullName} to '$destination'"
-          }
+              Write-Host "[!] Moved ${file.FullName} to '$destination'"
+            }
 
-          foreach ($file in Get-ChildItem -Path ([System.IO.Path]::Combine($artifact, "libopus-$runtime", "bin")) -Recurse -File) {
-            New-Item -ItemType Directory -Path ([System.IO.Path]::Combine($output, "runtimes", $rid, "native")) -Force | Out-Null
+            foreach ($file in Get-ChildItem -Path ([System.IO.Path]::Combine($artifact, "libopus-$runtime", "bin")) -Recurse -File) {
+              New-Item -ItemType Directory -Path ([System.IO.Path]::Combine($output, "runtimes", $rid, "native")) -Force | Out-Null
 
-            $destination = [System.IO.Path]::Combine($output, "runtimes", $rid, "native", $file.Name)
-            Move-Item -Path $file.FullName -Destination $destination -Force
+              $destination = [System.IO.Path]::Combine($output, "runtimes", $rid, "native", $file.Name)
+              Move-Item -Path $file.FullName -Destination $destination -Force
 
-            Write-Host "[!] Moved ${file.FullName} to '$destination'"
+              Write-Host "[!] Moved ${file.FullName} to '$destination'"
+            }
           }
 
       - name: pack
@@ -450,5 +451,3 @@ jobs:
         with:
           name: libopus-nuget
           path: dist
-
-
