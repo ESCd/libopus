@@ -395,6 +395,10 @@ jobs:
       [build-linux-emulated, build-linux-native, build-macos, build-windows]
     runs-on: ubuntu-latest
 
+    permissions:
+      checks: write
+      contents: read
+
     steps:
       - name: checkout
         uses: actions/checkout@v6
@@ -458,6 +462,7 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
+      contents: read
       id-token: write
 
     steps:
