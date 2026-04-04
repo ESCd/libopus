@@ -37,9 +37,6 @@ jobs:
             extra_configure: 'ARM_DOTPROD_INTR_CFLAGS="-march=armv8.2-a+dotprod"'
 
     steps:
-      - name: checkout
-        uses: actions/checkout@v6
-
       - name: setup tools
         run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends autoconf automake gcc libtool make
 
@@ -155,9 +152,6 @@ jobs:
             extra_configure: ""
 
     steps:
-      - name: checkout
-        uses: actions/checkout@v6
-
       - name: setup qemu
         uses: docker/setup-qemu-action@v4
 
@@ -206,12 +200,8 @@ jobs:
       - name: assert intrinsics defined
         run: |
           echo "=== Intrinsics in config.h ==="
-          grep -E "(MAY_HAVE|PRESUME)_(AVX2|SSE4_1|SSE2|NEON|DOTPROD)" opus-src/config.h \
-            | grep "#define" \
-            | grep -v "^//" \
-            || true
-          grep -qE "#define OPUS_(X86|ARM).*(MAY_HAVE|PRESUME)" opus-src/config.h \
-            || echo "WARNING: No intrinsics detected (expected for armv7 without dotprod)"
+          grep -E "(MAY_HAVE|PRESUME)_(AVX2|SSE4_1|SSE2|NEON|DOTPROD)" opus-src/config.h | grep "#define" | grep -v "^//" || true
+          grep -qE "#define OPUS_(X86|ARM).*(MAY_HAVE|PRESUME)" opus-src/config.h || echo "WARNING: No intrinsics detected (expected for armv7 without dotprod)"
 
       - name: upload artifact
         uses: actions/upload-artifact@v7
@@ -236,9 +226,6 @@ jobs:
   #           cflags: "-O2 -pipe"
 
   #   steps:
-  #     - name: checkout
-  #       uses: actions/checkout@v6
-
   #     - name: download source
   #       run: |
   #         curl -fSL "https://downloads.xiph.org/releases/opus/opus-${{ env.OPUS_VERSION }}.tar.gz" -o opus.tar.gz
@@ -409,7 +396,7 @@ jobs:
   #         retention-days: ${{ env.RETENTION_DAYS }}
 
   # pack:
-  #   needs: [build-linux, build-macos, build-windows]
+  #   needs: [build-linux-emulated, build-linux-native, build-macos, build-windows]
   #   runs-on: ubuntu-latest
 
   #   steps:
