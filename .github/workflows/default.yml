@@ -121,6 +121,8 @@ jobs:
       - name: prepare artifact
         run: |
           mkdir -p dist
+          ls -la opus-src/.libs
+
           cp opus-src/.libs/libopus.so.0 dist/bin/libopus.so
           cp opus-src/.libs/libopus.a dist/lib/libopus.a
 
