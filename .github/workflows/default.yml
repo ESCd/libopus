@@ -225,6 +225,97 @@ jobs:
           path: dist
           retention-days: ${{ env.RETENTION_DAYS }}
 
+  build-windows:
+    name: build ${{ matrix.rid }}
+    runs-on: windows-2025-vs2026
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - rid: win-x64
+            cmake_arch: x64
+            extra_cmake: -DOPUS_X86_MAY_HAVE_AVX2=ON
+
+          - rid: win-arm64
+            cmake_arch: ARM64
+            extra_cmake: -DOPUS_ARM_MAY_HAVE_NEON_INTR=ON
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v6
+
+      - name: download source
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://downloads.xiph.org/releases/opus/opus-${{ env.OPUS_VERSION }}.tar.gz" -OutFile opus.tar.gz
+
+          $actual = (Get-FileHash opus.tar.gz -Algorithm SHA256).Hash.ToLower()
+          $expected = "${{ env.OPUS_CHECKSUM }}"
+          if ($actual -ne $expected) {
+            Write-Error "SHA256 mismatch. Expected: $expected  Got: $actual"
+            exit 1
+          }
+
+          tar -xzf opus.tar.gz
+          Rename-Item "opus-${{ env.OPUS_VERSION }}" opus-src
+
+      - name: configure (shared)
+        working-directory: opus-src
+        run: |
+          cmake -B build-shared -S . `
+            -G "Visual Studio 18 2026" `
+            -A ${{ matrix.cmake_arch }} `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DBUILD_SHARED_LIBS=ON `
+            -DOPUS_BUILD_TESTING=OFF `
+            -DOPUS_BUILD_PROGRAMS=OFF `
+            -DOPUS_INSTALL_PKG_CONFIG_MODULE=OFF `
+            ${{ matrix.extra_cmake }}
+
+      - name: build (shared)
+        working-directory: opus-src
+        run: cmake --build build-shared --config Release --parallel
+
+      - name: configure (static)
+        working-directory: opus-src
+        run: |
+          cmake -B build-static -S . `
+            -G "Visual Studio 18 2026" `
+            -A ${{ matrix.cmake_arch }} `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DBUILD_SHARED_LIBS=OFF `
+            -DOPUS_BUILD_TESTING=OFF `
+            -DOPUS_BUILD_PROGRAMS=OFF `
+            -DOPUS_INSTALL_PKG_CONFIG_MODULE=OFF `
+            ${{ matrix.extra_cmake }}
+
+      - name: build (static)
+        working-directory: opus-src
+        run: cmake --build build-static --config Release --parallel
+
+      - name: verify outputs
+        working-directory: opus-src
+        run: |
+          dumpbin /headers build-shared\Release\opus.dll | findstr "machine"
+          dumpbin /exports build-shared\Release\opus.dll | findstr "opus_encode"
+          dumpbin /headers build-static\Release\opus.lib | findstr "machine"
+
+      - name: prepare artifact
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist\bin
+          New-Item -ItemType Directory -Force dist\lib
+
+          Copy-Item opus-src\build-shared\Release\opus.dll dist\bin\opus.dll
+          Copy-Item opus-src\build-static\Release\opus.lib dist\lib\opus.lib
+
+      - name: upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: libopus-${{ matrix.rid }}
+          path: dist
+          retention-days: 14
+
   # pack:
   #   needs: [build-linux, build-macos, build-windows]
   #   runs-on: ubuntu-latest
