@@ -148,7 +148,7 @@ jobs:
             cflags: "-O2 -pipe"
 
           - rid: osx-x64
-            runs_on: macos-26-large
+            runs_on: macos-26-intel
             cflags: "-O2 -pipe"
 
     steps:
