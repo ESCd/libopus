@@ -120,11 +120,10 @@ jobs:
 
       - name: prepare artifact
         run: |
-          mkdir -p dist
-          ls -la opus-src/.libs
+          mkdir -p dist/bin && mkdir -p dist/lib
 
-          cp opus-src/.libs/libopus.so.0 dist/bin/libopus.so
-          cp opus-src/.libs/libopus.a dist/lib/libopus.a
+          cp opus-src/.libs/libopus.a dist/lib
+          cp opus-src/.libs/libopus.so dist/bin
 
       - name: upload artifact
         uses: actions/upload-artifact@v7
