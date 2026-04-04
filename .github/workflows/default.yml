@@ -1,0 +1,184 @@
+name: default
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+  pull_request:
+    branches:
+      - develop
+  workflow_dispatch:
+
+env:
+  DOTNET_NOLOGO: true
+  MACOS_MIN_TARGET: "12.0"
+  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+  OPUS_VERSION: "1.6.1"
+
+jobs:
+  build-linux:
+    name: build ${{ matrix.rid }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - rid: linux-x64
+            host_triple: x86_64-linux-gnu
+            build_triple: x86_64-linux-gnu
+            cc: gcc
+            cross_pkg: ""
+            cflags: "-O2 -march=x86-64 -pipe"
+            extra_configure: ""
+
+          - rid: linux-arm64
+            host_triple: aarch64-linux-gnu
+            build_triple: x86_64-linux-gnu
+            cc: aarch64-linux-gnu-gcc
+            cross_pkg: "gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu"
+            cflags: "-O2 -march=armv8-a -pipe"
+            extra_configure: 'ARM_DOTPROD_INTR_CFLAGS="-march=armv8.2-a+dotprod"'
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v6
+
+      - name: setup tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends make ${{ matrix.cross_pkg }}
+
+      - name: download source
+        run: |
+          curl -fSL "https://downloads.xiph.org/releases/opus/opus-${{ env.OPUS_VERSION }}.tar.gz" -o opus.tar.gz
+          tar -xzf opus.tar.gz
+          mv opus-${{ env.OPUS_VERSION }} opus-src
+
+      - name: configure
+        working-directory: opus-src
+        run: |
+          ./configure \
+            --host=${{ matrix.host_triple }} \
+            --build=${{ matrix.build_triple }} \
+            --enable-shared \
+            --enable-static \
+            --disable-doc \
+            --disable-extra-programs \
+            --enable-rtcd \
+            CC=${{ matrix.cc }} \
+            CFLAGS="${{ matrix.cflags }}" \
+            ${{ matrix.extra_configure }}
+
+      - name: assert intrinsics defined
+        working-directory: opus-src
+        run: |
+          echo "=== Intrinsics in config.h ==="
+
+          grep -E "(MAY_HAVE|PRESUME)_(AVX2|SSE4_1|SSE2|NEON|DOTPROD)" config.h \
+            | grep "#define" \
+            | grep -v "^//"
+
+          # Fail if no intrinsic defines were set at all
+          grep -qE "#define OPUS_(X86|ARM).*(MAY_HAVE|PRESUME)" config.h
+
+      - name: make
+        working-directory: opus-src
+        run: make -j$(nproc)
+
+      - name: verify AVX2 code generation (x64 only)
+        if: matrix.rid == 'linux-x64'
+        working-directory: opus-src
+        run: |
+          echo "=== YMM register usage (AVX2 evidence) ==="
+          COUNT=$(objdump -d .libs/libopus.so.0 | grep -c "ymm" || true)
+
+          echo "YMM instructions found: $COUNT"
+          [ "$COUNT" -gt 0 ] || { echo "ERROR: No AVX2 instructions in .so"; exit 1; }
+
+          echo "=== Verifying static archive also contains AVX2 ==="
+          COUNT_A=$(objdump -d .libs/libopus.a | grep -c "ymm" || true)
+
+          echo "YMM instructions in .a: $COUNT_A"
+          [ "$COUNT_A" -gt 0 ] || { echo "ERROR: No AVX2 instructions in .a"; exit 1; }
+          objdump -p .libs/libopus.so.0 | grep SONAME
+
+      - name: verify NEON code generation (arm64 only)
+        if: matrix.rid == 'linux-arm64'
+        working-directory: opus-src
+        run: |
+          echo "=== NEON vector register usage ==="
+          COUNT=$(aarch64-linux-gnu-objdump -d .libs/libopus.so.0 | grep -cE "\bv[0-9]+\.(16b|8h|4s|2d)\b" || true)
+
+          echo "NEON vector instructions found: $COUNT"
+          [ "$COUNT" -gt 0 ] || { echo "ERROR: No NEON instructions found"; exit 1; }
+
+      - name: test (native only)
+        if: matrix.rid == 'linux-x64'
+        working-directory: opus-src
+        run: make check
+
+      - name: prepare artifact
+        run: |
+          mkdir -p native/${{ matrix.rid }}
+          cp opus-src/.libs/libopus.so.0 native/${{ matrix.rid }}/libopus.so
+          cp opus-src/.libs/libopus.a native/${{ matrix.rid }}/libopus.a
+
+      - name: upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-${{ matrix.rid }}
+          path: native/${{ matrix.rid }}/
+          retention-days: 14
+
+  # pack:
+  #   needs: [build-linux, build-macos, build-windows]
+  #   runs-on: ubuntu-latest
+
+  #   steps:
+  #     - name: checkout
+  #       uses: actions/checkout@v6
+
+  #     - name: setup dotnet
+  #       uses: actions/setup-dotnet@v5
+  #       with:
+  #         global-json-file: global.json
+
+  #     - name: download linux-x64 artifact
+  #       uses: actions/download-artifact@v8
+  #       with:
+  #         name: native-linux-x64
+  #         path: native/linux-x64/
+
+  #     - name: download linux-arm64 artifact
+  #       uses: actions/download-artifact@v8
+  #       with:
+  #         name: native-linux-arm64
+  #         path: native/linux-arm64/
+
+  #     - name: download macos artifacts
+  #       uses: actions/download-artifact@v8
+  #       with:
+  #         name: native-macos
+  #         path: native/
+
+  #     - name: download win-x64 artifact
+  #       uses: actions/download-artifact@v8
+  #       with:
+  #         name: native-win-x64
+  #         path: native/win-x64/
+
+  #     - name: Verify native layout
+  #       run: |
+  #         echo "=== Native binary layout ==="
+  #         find native/ -type f | sort
+  #         # Assert all six expected binaries are present
+  #         for f in \
+  #           native/linux-x64/libopus.so.0 \
+  #           native/linux-arm64/libopus.so.0 \
+  #           native/osx-arm64/libopus.dylib \
+  #           native/osx-x64/libopus.dylib \
+  #           native/win-x64/opus.dll; do
+  #           [ -f "$f" ] || { echo "ERROR: missing $f"; exit 1; }
+  #           echo "OK: $f ($(du -h "$f" | cut -f1))"
+  #         done
