@@ -1,0 +1,10 @@
+<Project>
+
+  <ItemGroup Condition=" '$(LibOpusEnableStaticLinking)' == 'true' AND '$(RuntimeIdentifier)' != '' ">
+    <NativeLibrary Include="$(LibOpusDirectory)\static\$(RuntimeIdentifier)\native\*.*" />
+
+    <DirectPInvoke Include="libopus" Condition="!$(RuntimeIdentifier.StartsWith('win'))" />
+    <DirectPInvoke Include="opus" Condition="$(RuntimeIdentifier.StartsWith('win'))" />
+  </ItemGroup>
+
+</Project>

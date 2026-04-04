@@ -1,0 +1,8 @@
+<Project>
+
+  <PropertyGroup>
+    <LibOpusDirectory>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)\..'))</LibOpusDirectory>
+    <LibOpusEnableStaticLinking Condition=" '$(LibOpusEnableStaticLinking)' == '' AND '$(PublishAot)' == 'true' AND '$(RuntimeIdentifier)' != '' ">true</LibOpusEnableStaticLinking>
+  </PropertyGroup>
+
+</Project>
