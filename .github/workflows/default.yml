@@ -58,7 +58,6 @@ jobs:
       - name: configure
         working-directory: opus-src
         run: |
-          ./autogen.sh
           ./configure \
             --host=${{ matrix.host_triple }} \
             --build=${{ matrix.build_triple }} \
