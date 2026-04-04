@@ -16,8 +16,6 @@ env:
   NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
   OPUS_CHECKSUM: "6ffcb593207be92584df15b32466ed64bbec99109f007c82205f0194572411a1"
   OPUS_VERSION: "1.6.1"
-  RETENTION_DAYS: 14
-
 jobs:
   # build-linux-native:
   #   name: build ${{ matrix.rid }}
@@ -118,7 +116,6 @@ jobs:
   #       with:
   #         name: libopus-${{ matrix.rid }}
   #         path: dist
-  #         retention-days: ${{ env.RETENTION_DAYS }}
 
   # build-linux-emulated:
   #   name: build ${{ matrix.rid }}
@@ -208,7 +205,6 @@ jobs:
   #       with:
   #         name: libopus-${{ matrix.rid }}
   #         path: dist
-  #         retention-days: ${{ env.RETENTION_DAYS }}
 
   # build-macos:
   #   name: build ${{ matrix.rid }}
@@ -294,7 +290,6 @@ jobs:
   #       with:
   #         name: libopus-${{ matrix.rid }}
   #         path: dist
-  #         retention-days: ${{ env.RETENTION_DAYS }}
 
   build-windows:
     name: build ${{ matrix.rid }}
@@ -393,7 +388,6 @@ jobs:
         with:
           name: libopus-${{ matrix.rid }}
           path: dist
-          retention-days: ${{ env.RETENTION_DAYS }}
 
   pack:
     # needs: [build-linux-emulated, build-linux-native, build-macos, build-windows]
@@ -421,9 +415,11 @@ jobs:
           merge-multiple: false
           path: artifact
 
-      - name: prepare native assets
-        # shell: pwsh
+      - name: restore
+        shell: pwsh
         run: |
-          # $runtimes = @("linux-arm", "linux-arm64", "linux-x64", "linux-musl-arm", "linux-musl-arm64", "linux-musl-x64", "osx-arm64", "osx-x64", "win-arm64", "win-x64")
+          dotnet restore --locked-mode
 
-          ls -la artifact
+          # $runtimes = @("linux-arm", "linux-arm64", "linux-x64", "linux-musl-arm", "linux-musl-arm64", "linux-musl-x64", "osx-arm64", "osx-x64", "win-arm64", "win-x64")
+          tree artifact
+
