@@ -14,12 +14,14 @@ env:
   DOTNET_NOLOGO: true
   MACOS_MIN_TARGET: "12.0"
   NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+  OPUS_CHECKSUM: "6ffcb593207be92584df15b32466ed64bbec99109f007c82205f0194572411a1"
   OPUS_VERSION: "1.6.1"
+  RETENTION_DAYS: 14
 
 jobs:
   build-linux:
     name: build ${{ matrix.rid }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: true
       matrix:
@@ -52,6 +54,7 @@ jobs:
       - name: download source
         run: |
           curl -fSL "https://downloads.xiph.org/releases/opus/opus-${{ env.OPUS_VERSION }}.tar.gz" -o opus.tar.gz
+          echo "${{ env.OPUS_CHECKSUM }}  opus.tar.gz" | shasum -a 256 --check
           tar -xzf opus.tar.gz
           mv opus-${{ env.OPUS_VERSION }} opus-src
 
@@ -121,6 +124,7 @@ jobs:
       - name: prepare artifact
         run: |
           mkdir -p dist/bin && mkdir -p dist/lib
+          ls -la opus-src/.libs/
 
           cp opus-src/.libs/libopus.a dist/lib
           cp opus-src/.libs/libopus.so dist/bin
@@ -130,7 +134,110 @@ jobs:
         with:
           name: libopus-${{ matrix.rid }}
           path: dist
-          retention-days: 14
+          retention-days: ${{ env.RETENTION_DAYS }}
+
+  build-macos:
+    name: build ${{ matrix.rid }}
+    runs-on: macos-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - rid: osx-arm64
+            host_triple: aarch64-apple-darwin
+            build_triple: aarch64-apple-darwin
+            arch: arm64
+            cflags: "-O2 -arch arm64 -pipe"
+            extra_configure: ""
+
+          - rid: osx-x64
+            host_triple: x86_64-apple-darwin
+            build_triple: aarch64-apple-darwin
+            arch: x86_64
+            cflags: "-O2 -march=x86-64 -pipe"
+            extra_configure: 'X86_AVX2_CFLAGS="-mavx2 -mfma"'
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v6
+
+      - name: download source
+        run: |
+          curl -fSL "https://downloads.xiph.org/releases/opus/opus-${{ env.OPUS_VERSION }}.tar.gz" -o opus.tar.gz
+          echo "${{ env.OPUS_CHECKSUM }}  opus.tar.gz" | shasum -a 256 --check
+          tar -xzf opus.tar.gz
+          mv opus-${{ env.OPUS_VERSION }} opus-src
+
+      - name: configure
+        working-directory: opus-src
+        run: |
+          ./configure \
+            --host=${{ matrix.host_triple }} \
+            --build=${{ matrix.build_triple }} \
+            --enable-shared \
+            --enable-static \
+            --disable-doc \
+            --disable-extra-programs \
+            --enable-rtcd \
+            CC="clang -arch ${{ matrix.arch }}" \
+            CFLAGS="${{ matrix.cflags }} -mmacosx-version-min=${{ env.MACOS_MIN_TARGET }}" \
+            LDFLAGS="-arch ${{ matrix.arch }} -mmacosx-version-min=${{ env.MACOS_MIN_TARGET }}" \
+            ${{ matrix.extra_configure }}
+
+      - name: assert intrinsics defined
+        working-directory: opus-src
+        run: |
+          echo "=== Intrinsics in config.h ==="
+
+          grep -E "(MAY_HAVE|PRESUME)_(AVX2|SSE4_1|SSE2|NEON|DOTPROD)" config.h \
+            | grep "#define" \
+            | grep -v "^//" \
+            || true
+
+          # arm64: assert ARM intrinsics; osx-x64: assert x86 intrinsics
+          if [ "${{ matrix.rid }}" = "osx-arm64" ]; then
+            grep -qE "#define OPUS_ARM.*(MAY_HAVE|PRESUME)" config.h \
+              || { echo "ERROR: No ARM intrinsics detected"; exit 1; }
+          else
+            grep -qE "#define OPUS_X86_MAY_HAVE_(AVX2|SSE4_1|SSE2)" config.h \
+              || { echo "ERROR: No x86 intrinsics detected"; exit 1; }
+          fi
+
+      - name: make
+        working-directory: opus-src
+        run: make -j$(sysctl -n hw.logicalcpu)
+
+      - name: verify dylib architecture
+        working-directory: opus-src
+        run: |
+          echo "=== Mach-O architecture ==="
+          lipo -info .libs/libopus.dylib
+          lipo -info .libs/libopus.dylib | grep -q "${{ matrix.arch }}" || { echo "ERROR: ${{ matrix.arch }} slice not found"; exit 1; }
+
+      - name: verify AVX2 code generation (x64 only)
+        if: matrix.rid == 'osx-x64'
+        working-directory: opus-src
+        run: |
+          echo "=== AVX2 evidence (YMM registers) ==="
+          COUNT=$(llvm-objdump -d .libs/libopus.dylib 2>/dev/null | grep -c "ymm" || true)
+
+          echo "YMM instructions found: $COUNT"
+          [ "$COUNT" -gt 0 ] || { echo "ERROR: No AVX2 instructions in dylib"; exit 1; }
+
+      - name: prepare artifact
+        run: |
+          mkdir -p dist/bin && mkdir -p dist/lib
+          ls -la opus-src/.libs/
+
+          cp opus-src/.libs/libopus.dylib dist/bin
+          cp opus-src/.libs/libopus.a dist/lib
+
+      - name: upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: libopus-${{ matrix.rid }}
+          path: dist
+          retention-days: ${{ env.RETENTION_DAYS }}
 
   # pack:
   #   needs: [build-linux, build-macos, build-windows]
