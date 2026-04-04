@@ -36,7 +36,7 @@ jobs:
             host_triple: aarch64-linux-gnu
             build_triple: x86_64-linux-gnu
             cc: aarch64-linux-gnu-gcc
-            cross_pkg: "gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu"
+            cross_pkg: "gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu libc6-dev-arm64-cross"
             cflags: "-O2 -march=armv8-a -pipe"
             extra_configure: 'ARM_DOTPROD_INTR_CFLAGS="-march=armv8.2-a+dotprod"'
 
@@ -120,15 +120,15 @@ jobs:
 
       - name: prepare artifact
         run: |
-          mkdir -p native/${{ matrix.rid }}
-          cp opus-src/.libs/libopus.so.0 native/${{ matrix.rid }}/libopus.so
-          cp opus-src/.libs/libopus.a native/${{ matrix.rid }}/libopus.a
+          mkdir -p dist
+          cp opus-src/.libs/libopus.so.0 dist/bin/libopus.so
+          cp opus-src/.libs/libopus.a dist/lib/libopus.a
 
       - name: upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: native-${{ matrix.rid }}
-          path: native/${{ matrix.rid }}/
+          name: libopus-${{ matrix.rid }}
+          path: dist
           retention-days: 14
 
   # pack:
