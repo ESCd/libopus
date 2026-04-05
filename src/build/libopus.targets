@@ -4,12 +4,15 @@
     <!-- NOTE: disable static linking if no runtime identifier is specified -->
     <LibOpusEnableStaticLinking Condition=" '$(RuntimeIdentifier)' == '' ">false</LibOpusEnableStaticLinking>
 
+    <!-- NOTE: enable static linking if AOT publishing is enabled and a runtime identifier is specified -->
+    <LibOpusEnableStaticLinking Condition=" '$(LibOpusEnableStaticLinking)' == '' AND '$(PublishAot)' == 'true' AND '$(RuntimeIdentifier)' != '' ">true</LibOpusEnableStaticLinking>
+
     <!-- NOTE: disable runtime linking if static linking is enabled -->
     <LibOpusEnableRuntimeLinking Condition=" '$(LibOpusEnableStaticLinking)' == 'true' ">false</LibOpusEnableRuntimeLinking>
   </PropertyGroup>
 
   <ItemGroup Condition=" '$(LibOpusEnableRuntimeLinking)' == 'true' ">
-    <Content Include="$(LibOpusDirectory)\shared\**\*.*" Visible="false">
+    <Content Include="$(LibOpusDirectory)\shared\**\*.*" Visible="$(LibOpusItemsVisible)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <Link>runtimes\%(RecursiveDir)\%(Filename)%(Extension)</Link>
@@ -19,9 +22,7 @@
 
   <ItemGroup Condition=" '$(LibOpusEnableStaticLinking)' == 'true' ">
     <NativeLibrary Include="$(LibOpusDirectory)\static\$(RuntimeIdentifier)\native\*.*" />
-
-    <DirectPInvoke Include="libopus" Condition="!$(RuntimeIdentifier.StartsWith('win'))" />
-    <DirectPInvoke Include="opus" Condition="$(RuntimeIdentifier.StartsWith('win'))" />
+    <DirectPInvoke Include="libopus;opus" />
   </ItemGroup>
 
 </Project>

@@ -4,6 +4,7 @@
     <LibOpusDirectory>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)\..'))</LibOpusDirectory>
     <LibOpusEnableRuntimeLinking Condition=" '$(LibOpusEnableRuntimeLinking)' == '' ">true</LibOpusEnableRuntimeLinking>
     <LibOpusEnableStaticLinking Condition=" '$(LibOpusEnableStaticLinking)' == '' AND '$(PublishAot)' == 'true' AND '$(RuntimeIdentifier)' != '' ">true</LibOpusEnableStaticLinking>
+    <LibOpusItemsVisible Condition=" '$(LibOpusItemsVisible)' == '' ">false</LibOpusItemsVisible>
   </PropertyGroup>
 
 </Project>
