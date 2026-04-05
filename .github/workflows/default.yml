@@ -109,8 +109,11 @@ jobs:
           mkdir -p dist/bin && mkdir -p dist/lib
           ls -la opus-src/.libs/
 
-          cp opus-src/.libs/libopus.a dist/lib
-          cp opus-src/.libs/libopus.so dist/bin
+          cp opus-src/.libs/libopus.a dist/lib/libopus.a
+          cp opus-src/.libs/libopus.a dist/lib/opus.a
+
+          cp opus-src/.libs/libopus.so dist/bin/libopus.so
+          cp opus-src/.libs/libopus.so dist/bin/opus.so
 
       - name: upload artifact
         uses: actions/upload-artifact@v7
@@ -192,7 +195,10 @@ jobs:
 
               mkdir -p /dist/bin /dist/lib
               cp .libs/libopus.so /dist/bin/libopus.so
+              cp .libs/libopus.so /dist/bin/opus.so
+
               cp .libs/libopus.a /dist/lib/libopus.a
+              cp .libs/libopus.a /dist/lib/opus.a
             "
 
       - name: assert intrinsics defined
@@ -283,8 +289,11 @@ jobs:
           mkdir -p dist/bin && mkdir -p dist/lib
           ls -la opus-src/.libs/
 
-          cp opus-src/.libs/libopus.dylib dist/bin
-          cp opus-src/.libs/libopus.a dist/lib
+          cp opus-src/.libs/libopus.dylib dist/bin/libopus.dylib
+          cp opus-src/.libs/libopus.dylib dist/bin/opus.dylib
+
+          cp opus-src/.libs/libopus.a dist/lib/libopus.a
+          cp opus-src/.libs/libopus.a dist/lib/opus.a
 
       - name: upload artifact
         uses: actions/upload-artifact@v7
@@ -381,7 +390,10 @@ jobs:
           New-Item -ItemType Directory -Force dist\bin
           New-Item -ItemType Directory -Force dist\lib
 
+          Copy-Item opus-src\build-shared\Release\opus.dll dist\bin\libopus.dll
           Copy-Item opus-src\build-shared\Release\opus.dll dist\bin\opus.dll
+
+          Copy-Item opus-src\build-static\Release\opus.lib dist\lib\libopus.lib
           Copy-Item opus-src\build-static\Release\opus.lib dist\lib\opus.lib
 
       - name: upload artifact
@@ -439,9 +451,9 @@ jobs:
             }
 
             foreach ($file in Get-ChildItem -Path ([System.IO.Path]::Combine($artifact, "libopus-$runtime", "bin")) -Recurse -File) {
-              New-Item -ItemType Directory -Path ([System.IO.Path]::Combine($output, "runtimes", $runtime, "native")) -Force | Out-Null
+              New-Item -ItemType Directory -Path ([System.IO.Path]::Combine($output, "shared", $runtime, "native")) -Force | Out-Null
 
-              $destination = [System.IO.Path]::Combine($output, "runtimes", $runtime, "native", $file.Name)
+              $destination = [System.IO.Path]::Combine($output, "shared", $runtime, "native", $file.Name)
               Move-Item -Path $file.FullName -Destination $destination -Force
 
               Write-Host "[!] Moved ${file.FullName} to '$destination'"

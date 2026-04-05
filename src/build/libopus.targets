@@ -1,10 +1,35 @@
 <Project>
 
-  <ItemGroup Condition=" '$(LibOpusEnableStaticLinking)' == 'true' AND '$(RuntimeIdentifier)' != '' ">
-    <NativeLibrary Include="$(LibOpusDirectory)\static\$(RuntimeIdentifier)\native\*.*" />
+  <PropertyGroup>
+    <!-- NOTE: disable static linking if no runtime identifier is specified -->
+    <LibOpusEnableStaticLinking Condition=" '$(RuntimeIdentifier)' == '' ">false</LibOpusEnableStaticLinking>
 
-    <DirectPInvoke Include="libopus" Condition="!$(RuntimeIdentifier.StartsWith('win'))" />
-    <DirectPInvoke Include="opus" Condition="$(RuntimeIdentifier.StartsWith('win'))" />
+    <!-- NOTE: enable static linking if AOT publishing is enabled and a runtime identifier is specified -->
+    <LibOpusEnableStaticLinking Condition=" '$(LibOpusEnableStaticLinking)' == '' AND '$(PublishAot)' == 'true' AND '$(RuntimeIdentifier)' != '' ">true</LibOpusEnableStaticLinking>
+
+    <!-- NOTE: disable runtime linking if static linking is enabled -->
+    <LibOpusEnableRuntimeLinking Condition=" '$(LibOpusEnableStaticLinking)' == 'true' ">false</LibOpusEnableRuntimeLinking>
+  </PropertyGroup>
+
+  <ItemGroup Condition=" '$(LibOpusEnableRuntimeLinking)' == 'true' ">
+    <Content Include="$(LibOpusDirectory)\shared\**\*.*" Visible="$(LibOpusItemsVisible)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <Link>runtimes\%(RecursiveDir)\%(Filename)%(Extension)</Link>
+      <TargetPath>runtimes\%(RecursiveDir)\%(Filename)%(Extension)</TargetPath>
+    </Content>
+
+    <Content Include="$(LibOpusDirectory)\shared\$(RuntimeIdentifier)\native\*.*" Visible="$(LibOpusItemsVisible)" Condition=" '$(RuntimeIdentifier)' != '' ">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <Link>%(Filename)%(Extension)</Link>
+      <TargetPath>%(Filename)%(Extension)</TargetPath>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup Condition=" '$(LibOpusEnableStaticLinking)' == 'true' ">
+    <NativeLibrary Include="$(LibOpusDirectory)\static\$(RuntimeIdentifier)\native\*.*" />
+    <DirectPInvoke Include="libopus;opus" />
   </ItemGroup>
 
 </Project>
