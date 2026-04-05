@@ -12,7 +12,7 @@
     <Content Include="..\README.md" Pack="true" PackagePath="\" />
 
     <Content Include="build\**\*.*" Pack="true" PackagePath="build\" />
-    <Content Include="runtimes\**\*.*" Pack="true" PackagePath="runtimes\" />
+    <Content Include="shared\**\*.*" Pack="true" PackagePath="shared\" />
     <Content Include="static\**\*.*" Pack="true" PackagePath="static\" />
   </ItemGroup>
 

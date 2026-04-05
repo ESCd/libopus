@@ -439,9 +439,9 @@ jobs:
             }
 
             foreach ($file in Get-ChildItem -Path ([System.IO.Path]::Combine($artifact, "libopus-$runtime", "bin")) -Recurse -File) {
-              New-Item -ItemType Directory -Path ([System.IO.Path]::Combine($output, "runtimes", $runtime, "native")) -Force | Out-Null
+              New-Item -ItemType Directory -Path ([System.IO.Path]::Combine($output, "shared", $runtime, "native")) -Force | Out-Null
 
-              $destination = [System.IO.Path]::Combine($output, "runtimes", $runtime, "native", $file.Name)
+              $destination = [System.IO.Path]::Combine($output, "shared", $runtime, "native", $file.Name)
               Move-Item -Path $file.FullName -Destination $destination -Force
 
               Write-Host "[!] Moved ${file.FullName} to '$destination'"
