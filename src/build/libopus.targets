@@ -18,6 +18,13 @@
       <Link>runtimes\%(RecursiveDir)\%(Filename)%(Extension)</Link>
       <TargetPath>runtimes\%(RecursiveDir)\%(Filename)%(Extension)</TargetPath>
     </Content>
+
+    <Content Include="$(LibOpusDirectory)\shared\$(RuntimeIdentifier)\native\*.*" Visible="$(LibOpusItemsVisible)" Condition=" '$(RuntimeIdentifier)' != '' ">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <Link>%(Filename)%(Extension)</Link>
+      <TargetPath>%(Filename)%(Extension)</TargetPath>
+    </Content>
   </ItemGroup>
 
   <ItemGroup Condition=" '$(LibOpusEnableStaticLinking)' == 'true' ">
