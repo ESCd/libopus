@@ -449,7 +449,7 @@ jobs:
           }
 
       - name: pack
-        run: dotnet build src/libopus.csproj -c Release && dotnet pack src/libopus.csproj -c Release -o dist --no-build
+        run: dotnet build src/libopus.csproj -c Release -p:LibOpusVersion="${{ env.OPUS_VERSION }}" && dotnet pack src/libopus.csproj -c Release -o dist --no-build -p:LibOpusVersion="${{ env.OPUS_VERSION }}"
 
       - name: upload artifact
         uses: actions/upload-artifact@v7
