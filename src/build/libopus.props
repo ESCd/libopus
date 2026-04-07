@@ -2,9 +2,10 @@
 
   <PropertyGroup>
     <LibOpusDirectory>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)\..'))</LibOpusDirectory>
-    <LibOpusEnableRuntimeLinking Condition=" '$(LibOpusEnableRuntimeLinking)' == '' ">true</LibOpusEnableRuntimeLinking>
-    <LibOpusEnableStaticLinking Condition=" '$(LibOpusEnableStaticLinking)' == '' AND '$(PublishAot)' == 'true' AND '$(RuntimeIdentifier)' != '' ">true</LibOpusEnableStaticLinking>
     <LibOpusItemsVisible Condition=" '$(LibOpusItemsVisible)' == '' ">false</LibOpusItemsVisible>
+    <LibOpusRuntimeLinking Condition=" '$(LibOpusRuntimeLinking)' == '' ">true</LibOpusRuntimeLinking>
+    <LibOpusStaticLinking Condition=" '$(LibOpusStaticLinking)' == '' ">none</LibOpusStaticLinking>
+    <LibOpusStaticLinking Condition=" '$(LibOpusStaticLinking)' == 'none' AND '$(PublishAot)' == 'true' AND '$(RuntimeIdentifier)' != '' ">true</LibOpusStaticLinking>
   </PropertyGroup>
 
 </Project>

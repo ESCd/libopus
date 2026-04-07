@@ -2,17 +2,17 @@
 
   <PropertyGroup>
     <!-- NOTE: disable static linking if no runtime identifier is specified -->
-    <LibOpusEnableStaticLinking Condition=" '$(RuntimeIdentifier)' == '' ">false</LibOpusEnableStaticLinking>
+    <LibOpusStaticLinking Condition=" '$(RuntimeIdentifier)' == '' ">false</LibOpusStaticLinking>
 
     <!-- NOTE: enable static linking if AOT publishing is enabled and a runtime identifier is specified -->
-    <LibOpusEnableStaticLinking Condition=" '$(LibOpusEnableStaticLinking)' == '' AND '$(PublishAot)' == 'true' AND '$(RuntimeIdentifier)' != '' ">true</LibOpusEnableStaticLinking>
+    <LibOpusStaticLinking Condition=" '$(LibOpusStaticLinking)' == 'none' AND '$(PublishAot)' == 'true' AND '$(RuntimeIdentifier)' != '' ">true</LibOpusStaticLinking>
 
     <!-- NOTE: disable runtime linking if static linking is enabled -->
-    <LibOpusEnableRuntimeLinking Condition=" '$(LibOpusEnableStaticLinking)' == 'true' ">false</LibOpusEnableRuntimeLinking>
+    <LibOpusRuntimeLinking Condition=" '$(LibOpusStaticLinking)' == 'true' ">false</LibOpusRuntimeLinking>
   </PropertyGroup>
 
-  <ItemGroup Condition=" '$(LibOpusEnableRuntimeLinking)' == 'true' ">
-    <Content Include="$(LibOpusDirectory)\shared\**\*.*" Visible="$(LibOpusItemsVisible)">
+  <ItemGroup Condition=" '$(LibOpusRuntimeLinking)' == 'true' ">
+    <Content Include="$(LibOpusDirectory)\shared\**\*.*" Visible="$(LibOpusItemsVisible)" Condition=" '$(Configuration)' == 'Debug' OR '$(RuntimeIdentifier)' == '' ">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <Link>runtimes\%(RecursiveDir)\%(Filename)%(Extension)</Link>
@@ -27,9 +27,15 @@
     </Content>
   </ItemGroup>
 
-  <ItemGroup Condition=" '$(LibOpusEnableStaticLinking)' == 'true' ">
+  <ItemGroup Condition=" '$(LibOpusStaticLinking)' == 'true' AND '$(RuntimeIdentifier)' != '' ">
+    <DirectPInvoke Include="opus;libopus" />
+
     <NativeLibrary Include="$(LibOpusDirectory)\static\$(RuntimeIdentifier)\native\*.*" />
-    <DirectPInvoke Include="libopus;opus" />
   </ItemGroup>
+
+  <Target Name="_PrepareLibOpusBuild" AfterTargets="PrepareForBuild">
+    <Error Text="A RuntimeIdentifier must be specified when static linking is enabled." Condition=" '$(LibOpusStaticLinking)' == 'true' AND '$(RuntimeIdentifier)' == '' " />
+    <Warning Text="LibOpusRuntimeLinking=true: runtime linking should not be enabled when static linking is enabled." Condition=" '$(LibOpusRuntimeLinking)' == 'true' AND '$(LibOpusStaticLinking)' == 'true' " />
+  </Target>
 
 </Project>
