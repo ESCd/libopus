@@ -17,73 +17,31 @@ env:
   OPUS_VERSION: "1.6.1"
 
 jobs:
-  build-linux:
+  build-linux-native:
     name: build ${{ matrix.rid }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runs_on }}
     strategy:
       fail-fast: true
       matrix:
         include:
           - rid: linux-x64
-            zig_target: x86_64-linux-gnu.2.17
-            autotools_host: x86_64-linux-gnu
+            runs_on: ubuntu-24.04
             cflags: "-O2 -march=x86-64 -pipe"
             extra_configure: ""
 
           - rid: linux-arm64
-            zig_target: aarch64-linux-gnu.2.23
-            autotools_host: aarch64-linux-gnu
+            runs_on: ubuntu-24.04-arm
             cflags: "-O2 -march=armv8-a -pipe"
             extra_configure: 'ARM_DOTPROD_INTR_CFLAGS="-march=armv8.2-a+dotprod"'
-
-          - rid: linux-arm
-            zig_target: arm-linux-gnueabihf.2.23
-            autotools_host: arm-linux-gnueabihf
-            cflags: "-O2 -march=armv7-a -mfpu=neon-vfpv4 -mfloat-abi=hard -pipe"
-            extra_configure: ""
-
-          - rid: linux-musl-x64
-            zig_target: x86_64-linux-musl
-            autotools_host: x86_64-linux-musl
-            cflags: "-O2 -march=x86-64 -pipe"
-            extra_configure: ""
-
-          - rid: linux-musl-arm64
-            zig_target: aarch64-linux-musl
-            autotools_host: aarch64-linux-musl
-            cflags: "-O2 -march=armv8-a -pipe"
-            extra_configure: 'ARM_DOTPROD_INTR_CFLAGS="-march=armv8.2-a+dotprod"'
-
-          - rid: linux-musl-arm
-            zig_target: arm-linux-musleabihf
-            autotools_host: arm-linux-musleabihf
-            cflags: "-O2 -march=armv7-a -mfpu=neon-vfpv4 -mfloat-abi=hard -pipe"
-            extra_configure: ""
 
     steps:
-      - name: setup zig
-        uses: mlugg/setup-zig@v2
-        with:
-          version: latest
-
       - name: setup tools
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends autoconf automake binutils-aarch64-linux-gnu binutils-arm-linux-gnueabihf build-essential cmake libtool make
-
-          mkdir -p "$HOME/.local/bin"
-          cat > "$HOME/.local/bin/zcc" << 'EOF'
-
-          #!/bin/sh
-          exec zig cc -target ${{ matrix.zig_target }} "$@"
-          EOF
-          chmod +x "$HOME/.local/bin/zcc"
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends autoconf automake gcc libtool make
 
       - name: download source
         run: |
           curl -fSL "https://downloads.xiph.org/releases/opus/opus-${{ env.OPUS_VERSION }}.tar.gz" -o opus.tar.gz
-          echo "${{ env.OPUS_CHECKSUM }}  opus.tar.gz" | sha256sum --check --strict
+          echo "${{ env.OPUS_CHECKSUM }}  opus.tar.gz" | shasum -a 256 --check
           tar -xzf opus.tar.gz
           mv opus-${{ env.OPUS_VERSION }} opus-src
 
@@ -96,11 +54,6 @@ jobs:
             --disable-doc \
             --disable-extra-programs \
             --enable-rtcd \
-            --build=x86_64-pc-linux-gnu \
-            --host=${{ matrix.autotools_host }} \
-            CC=zcc \
-            AR="zig ar" \
-            RANLIB="zig ranlib" \
             CFLAGS="${{ matrix.cflags }}" \
             ${{ matrix.extra_configure }}
 
@@ -108,44 +61,150 @@ jobs:
         working-directory: opus-src
         run: |
           echo "=== Intrinsics in config.h ==="
-          grep -E "(MAY_HAVE|PRESUME)_(AVX2|SSE4_1|SSE2|NEON|DOTPROD)" config.h | grep "#define" | grep -v "^//" || true
-          grep -qE "#define OPUS_(X86|ARM).*(MAY_HAVE|PRESUME)" config.h || echo "WARNING: No intrinsics detected (expected for armv7 without dotprod)"
+
+          grep -E "(MAY_HAVE|PRESUME)_(AVX2|SSE4_1|SSE2|NEON|DOTPROD)" config.h | grep "#define" | grep -v "^//"
+
+          # Fail if no intrinsic defines were set at all
+          grep -qE "#define OPUS_(X86|ARM).*(MAY_HAVE|PRESUME)" config.h
 
       - name: make
         working-directory: opus-src
         run: make -j$(nproc)
 
-      - name: verify AVX2 code generation (x64)
-        if: contains(matrix.rid, 'x64')
+      - name: verify AVX2 code generation (x64 only)
+        if: matrix.rid == 'linux-x64'
         working-directory: opus-src
         run: |
           echo "=== YMM register usage (AVX2 evidence) ==="
-          COUNT=$(objdump -d .libs/libopus.so | grep -c "ymm" || true)
+          COUNT=$(objdump -d .libs/libopus.so.0 | grep -c "ymm" || true)
+
           echo "YMM instructions found: $COUNT"
           [ "$COUNT" -gt 0 ] || { echo "ERROR: No AVX2 instructions in .so"; exit 1; }
 
+          echo "=== Verifying static archive also contains AVX2 ==="
           COUNT_A=$(objdump -d .libs/libopus.a | grep -c "ymm" || true)
+
           echo "YMM instructions in .a: $COUNT_A"
           [ "$COUNT_A" -gt 0 ] || { echo "ERROR: No AVX2 instructions in .a"; exit 1; }
+          objdump -p .libs/libopus.so.0 | grep SONAME
 
-      - name: verify NEON code generation (arm64)
-        if: contains(matrix.rid, 'arm64')
+      - name: verify NEON code generation (arm64 only)
+        if: matrix.rid == 'linux-arm64'
         working-directory: opus-src
         run: |
           echo "=== NEON vector register usage ==="
-          COUNT=$(aarch64-linux-gnu-objdump -d .libs/libopus.so \
-            | grep -cE "\bv[0-9]+\.(16b|8h|4s|2d)\b" || true)
+          COUNT=$(aarch64-linux-gnu-objdump -d .libs/libopus.so.0 | grep -cE "\bv[0-9]+\.(16b|8h|4s|2d)\b" || true)
+
           echo "NEON vector instructions found: $COUNT"
           [ "$COUNT" -gt 0 ] || { echo "ERROR: No NEON instructions found"; exit 1; }
 
+      - name: test (native only)
+        if: matrix.rid == 'linux-x64'
+        working-directory: opus-src
+        run: make check
+
       - name: prepare artifact
         run: |
-          mkdir -p dist/bin dist/lib
+          mkdir -p dist/bin && mkdir -p dist/lib
+          ls -la opus-src/.libs/
+
+          cp opus-src/.libs/libopus.a dist/lib/libopus.a
+          cp opus-src/.libs/libopus.a dist/lib/opus.a
+
           cp opus-src/.libs/libopus.so dist/bin/libopus.so
           cp opus-src/.libs/libopus.so dist/bin/opus.so
 
-          cp opus-src/.libs/libopus.a  dist/lib/libopus.a
-          cp opus-src/.libs/libopus.a  dist/lib/opus.a
+      - name: upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: libopus-${{ matrix.rid }}
+          path: dist
+
+  build-linux-emulated:
+    name: build ${{ matrix.rid }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - rid: linux-arm
+            docker_platform: linux/arm/v7
+            image: arm32v7/ubuntu:24.04
+            cflags: "-O2 -march=armv7-a -mfpu=neon-vfpv4 -mfloat-abi=hard -pipe"
+            extra_configure: ""
+
+          - rid: linux-musl-x64
+            docker_platform: linux/amd64
+            image: alpine:3.21
+            cflags: "-O2 -march=x86-64 -pipe"
+            extra_configure: ""
+
+          - rid: linux-musl-arm64
+            docker_platform: linux/arm64
+            image: alpine:3.21
+            cflags: "-O2 -march=armv8-a -pipe"
+            extra_configure: 'ARM_DOTPROD_INTR_CFLAGS="-march=armv8.2-a+dotprod"'
+
+          - rid: linux-musl-arm
+            docker_platform: linux/arm/v7
+            image: arm32v7/alpine:3.21
+            cflags: "-O2 -march=armv7-a -mfpu=neon-vfpv4 -mfloat-abi=hard -pipe"
+            extra_configure: ""
+
+    steps:
+      - name: setup qemu
+        uses: docker/setup-qemu-action@v4
+
+      - name: download source
+        run: |
+          curl -fSL "https://downloads.xiph.org/releases/opus/opus-${{ env.OPUS_VERSION }}.tar.gz" -o opus.tar.gz
+          echo "${{ env.OPUS_CHECKSUM }}  opus.tar.gz" | sha256sum --check --strict
+          tar -xzf opus.tar.gz
+          mv opus-${{ env.OPUS_VERSION }} opus-src
+
+      - name: build in container
+        run: |
+          docker run --rm \
+            --platform ${{ matrix.docker_platform }} \
+            -v "${{ github.workspace }}/opus-src:/opus-src" \
+            -v "${{ github.workspace }}/dist:/dist" \
+            ${{ matrix.image }} \
+            sh -c "
+              set -e
+
+              # Install build tools — Alpine uses apk, Ubuntu/Debian use apt-get
+              if command -v apk > /dev/null 2>&1; then
+                apk add --no-cache build-base
+              else
+                apt-get update -qq
+                apt-get install -y --no-install-recommends gcc make libc6-dev
+              fi
+
+              cd /opus-src
+              ./configure \
+                --enable-shared \
+                --enable-static \
+                --disable-doc \
+                --disable-extra-programs \
+                --enable-rtcd \
+                CFLAGS='${{ matrix.cflags }}' \
+                ${{ matrix.extra_configure }}
+
+              make -j\$(nproc)
+
+              mkdir -p /dist/bin /dist/lib
+              cp .libs/libopus.so /dist/bin/libopus.so
+              cp .libs/libopus.so /dist/bin/opus.so
+
+              cp .libs/libopus.a /dist/lib/libopus.a
+              cp .libs/libopus.a /dist/lib/opus.a
+            "
+
+      - name: assert intrinsics defined
+        run: |
+          echo "=== Intrinsics in config.h ==="
+          grep -E "(MAY_HAVE|PRESUME)_(AVX2|SSE4_1|SSE2|NEON|DOTPROD)" opus-src/config.h | grep "#define" | grep -v "^//" || true
+          grep -qE "#define OPUS_(X86|ARM).*(MAY_HAVE|PRESUME)" opus-src/config.h || echo "WARNING: No intrinsics detected (expected for armv7 without dotprod)"
 
       - name: upload artifact
         uses: actions/upload-artifact@v7
@@ -156,6 +215,9 @@ jobs:
   build-macos:
     name: build ${{ matrix.rid }}
     runs-on: ${{ matrix.runs_on }}
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "12.0"
+
     strategy:
       fail-fast: true
       matrix:
@@ -167,9 +229,6 @@ jobs:
           - rid: osx-x64
             runs_on: macos-26-intel
             cflags: "-O2 -pipe"
-
-    env:
-      MACOSX_DEPLOYMENT_TARGET: "12.0"
 
     steps:
       - name: download source
@@ -207,7 +266,7 @@ jobs:
         working-directory: opus-src
         run: make -j$(sysctl -n hw.logicalcpu)
 
-      - name: verify AVX2 code generation (x64)
+      - name: verify AVX2 code generation (x64 only)
         if: matrix.rid == 'osx-x64'
         working-directory: opus-src
         run: |
@@ -217,7 +276,7 @@ jobs:
           echo "YMM instructions found: $COUNT"
           [ "$COUNT" -gt 0 ] || { echo "ERROR: No AVX2 instructions in dylib"; exit 1; }
 
-      - name: verify NEON code generation (arm64)
+      - name: verify NEON code generation (arm64 only)
         if: matrix.rid == 'osx-arm64'
         working-directory: opus-src
         run: |
@@ -262,6 +321,9 @@ jobs:
             extra_cmake: -DOPUS_ARM_MAY_HAVE_NEON_INTR=ON
 
     steps:
+      - name: checkout
+        uses: actions/checkout@v6
+
       - name: setup msvc
         uses: ilammy/msvc-dev-cmd@v1
         with:
@@ -343,7 +405,8 @@ jobs:
           path: dist
 
   pack:
-    needs: [build-linux, build-macos, build-windows]
+    needs:
+      [build-linux-emulated, build-linux-native, build-macos, build-windows]
     runs-on: ubuntu-latest
 
     permissions:
