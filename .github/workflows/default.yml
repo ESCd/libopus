@@ -71,6 +71,15 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends autoconf automake binutils-aarch64-linux-gnu binutils-arm-linux-gnueabihf build-essential cmake libtool make
 
+          mkdir -p "$HOME/.local/bin"
+          cat > "$HOME/.local/bin/zcc" << 'EOF'
+
+          #!/bin/sh
+          exec zig cc -target ${{ matrix.zig_target }} "$@"
+          EOF
+          chmod +x "$HOME/.local/bin/zcc"
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
       - name: download source
         run: |
           curl -fSL "https://downloads.xiph.org/releases/opus/opus-${{ env.OPUS_VERSION }}.tar.gz" -o opus.tar.gz
@@ -87,8 +96,9 @@ jobs:
             --disable-doc \
             --disable-extra-programs \
             --enable-rtcd \
+            --build=x86_64-pc-linux-gnu \
             --host=${{ matrix.autotools_host }} \
-            CC="zig cc -target ${{ matrix.zig_target }}" \
+            CC=zcc \
             AR="zig ar" \
             RANLIB="zig ranlib" \
             CFLAGS="${{ matrix.cflags }}" \
