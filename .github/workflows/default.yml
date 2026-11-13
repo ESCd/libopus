@@ -12,7 +12,6 @@ on:
 
 env:
   DOTNET_NOLOGO: true
-  MACOS_MIN_TARGET: "12.0"
   NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
   OPUS_CHECKSUM: "6ffcb593207be92584df15b32466ed64bbec99109f007c82205f0194572411a1"
   OPUS_VERSION: "1.6.1"
@@ -216,6 +215,9 @@ jobs:
   build-macos:
     name: build ${{ matrix.rid }}
     runs-on: ${{ matrix.runs_on }}
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "12.0"
+
     strategy:
       fail-fast: true
       matrix:
@@ -245,8 +247,8 @@ jobs:
             --disable-doc \
             --disable-extra-programs \
             --enable-rtcd \
-            CFLAGS="${{ matrix.cflags }} -mmacosx-version-min=${{ env.MACOS_MIN_TARGET }}" \
-            LDFLAGS="-mmacosx-version-min=${{ env.MACOS_MIN_TARGET }}"
+            CFLAGS="${{ matrix.cflags }} -mmacosx-version-min=${{ env.MACOSX_DEPLOYMENT_TARGET }}" \
+            LDFLAGS="-mmacosx-version-min=${{ env.MACOSX_DEPLOYMENT_TARGET }}"
 
       - name: assert intrinsics defined
         working-directory: opus-src
@@ -320,7 +322,7 @@ jobs:
 
     steps:
       - name: checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: setup msvc
         uses: ilammy/msvc-dev-cmd@v1
@@ -413,17 +415,17 @@ jobs:
 
     steps:
       - name: checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           fetch-tags: true
 
       - name: setup dotnet
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           cache: true
           cache-dependency-path: ./**/packages.lock.json
-          global-json-file: global.json
+          dotnet-version: 11.0.x
 
       - name: download artifacts
         uses: actions/download-artifact@v8
@@ -481,14 +483,14 @@ jobs:
 
     steps:
       - name: checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 1
 
       - name: setup dotnet
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
-          global-json-file: global.json
+          dotnet-version: 11.0.x
 
       - name: nuget login
         uses: NuGet/login@v1
