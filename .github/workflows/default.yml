@@ -425,7 +425,6 @@ jobs:
         with:
           cache: true
           cache-dependency-path: ./**/packages.lock.json
-          dotnet-quality: preview
           dotnet-version: 11.0.x
 
       - name: download artifacts
@@ -491,7 +490,6 @@ jobs:
       - name: setup dotnet
         uses: actions/setup-dotnet@v6
         with:
-          dotnet-quality: preview
           dotnet-version: 11.0.x
 
       - name: nuget login
